@@ -6,9 +6,15 @@ import requests
 
 
 app = FastAPI(
-    title="RideBuddy Budget Calculator API",
-    description="Budget estimation service for RideBuddy Agent",
-    version="1.0.0"
+    title="RideBuddy Services API",
+    description="Backend services for the RideBuddy AI Travel Assistant",
+    version="1.0.0",
+    servers=[
+        {
+            "url": "https://ridebuddy-services-api.onrender.com",
+            "description": "Production Server"
+        }
+    ]
 )
 
 class BudgetRequest(BaseModel):
