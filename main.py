@@ -5,6 +5,13 @@ from pydantic import BaseModel
 import requests
 
 
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+ORS_API_KEY = os.getenv("ORS_API_KEY")
+
 app = FastAPI(
     title="RideBuddy Services API",
     description="Backend services for the RideBuddy AI Travel Assistant",
@@ -289,6 +296,37 @@ class WeatherRequest(BaseModel):
 
 
 
+class DistanceRequest(BaseModel):
+    source: str
+    destination: str
+
+
+def get_coordinates(city: str):
+
+    url = (
+        "https://api.openrouteservice.org/geocode/search"
+    )
+    headers = {
+        "Authorization": ORS_API_KEY
+    }
+    params = {
+        "text": city,
+        "size": 1
+    }
+    response = requests.get(
+        url,
+        headers=headers,
+        params=params
+    ).json()
+    features = response.get("features")
+
+    if not features:
+        return None
+
+    coordinates = features[0]["geometry"]["coordinates"]
+
+    return coordinates
+
 
 
 @app.get("/health")
@@ -338,6 +376,7 @@ def get_weather(request: WeatherRequest):
     f"&timezone=auto"
 )
 
+
     weather_response = requests.get(weather_url).json()
 
     current = weather_response["current"]
@@ -367,4 +406,57 @@ def get_weather(request: WeatherRequest):
         "is_day": bool(current["is_day"])
     },
     "travel_advice": travel_advice
+    }
+
+
+
+@app.post("/distance")
+def get_distance(request: DistanceRequest):
+
+    source = get_coordinates(request.source)
+    destination = get_coordinates(request.destination)
+
+    if source is None:
+        return {
+            "error": f"Source city '{request.source}' not found."
+        }
+
+    if destination is None:
+        return {
+            "error": f"Destination city '{request.destination}' not found."
+        }
+
+    url = (
+        "https://api.openrouteservice.org/v2/directions/driving-car"
+    )
+
+    headers = {
+        "Authorization": ORS_API_KEY,
+        "Content-Type": "application/json"
+    }
+
+    body = {
+        "coordinates": [
+            source,
+            destination
+        ]
+    }
+
+    response = requests.post(
+        url,
+        headers=headers,
+        json=body
+    ).json()
+
+    summary = response["routes"][0]["summary"]
+
+    distance_km = round(summary["distance"] / 1000, 1)
+
+    duration_hours = round(summary["duration"] / 3600, 1)
+
+    return {
+        "source": request.source,
+        "destination": request.destination,
+        "distance_km": distance_km,
+        "estimated_drive_time_hours": duration_hours
     }
